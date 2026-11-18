@@ -114,6 +114,11 @@ button.plate { cursor: pointer; }
 }
 .p-ans.wait { color: var(--muted); font-size: 1rem; font-family: var(--body); font-weight: 500; text-transform: none; letter-spacing: 0; }
 .p-foot { font-size: 0.875rem; color: var(--muted); min-height: 1.3em; }
+.p-why {
+  max-width: 54ch; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: 0.9375rem; line-height: 1.45; text-align: left;
+}
+.why { display: block; margin-top: 3px; font-size: 0.8125rem; color: var(--muted); max-width: 46ch; }
 
 /* Controls under the plate */
 .controls { display: flex; flex-direction: column; gap: 12px; }
@@ -221,6 +226,60 @@ td.st { font-weight: 600; }
 </div>
 
 <script>
+// Where each nickname comes from, shown with the answer.
+const WHY = {
+AL: "Confederate cavalry from Huntsville wore uniforms trimmed in yellow cloth, which reminded onlookers of the yellowhammer, a woodpecker with yellow under its wings. The name spread to all Alabama soldiers.",
+AK: "Alaska is remote and thinly settled, with vast stretches of wilderness that have never been developed.",
+AZ: "The Grand Canyon, carved by the Colorado River, lies in northern Arizona.",
+AR: "Adopted in 1995 to promote the state's mountains, rivers, forests, and hot springs. It replaced \"Land of Opportunity.\"",
+CA: "Gold was found at Sutter's Mill in 1848, setting off the Gold Rush. The name also fits the golden poppies and the hills that turn gold each summer.",
+CO: "Colorado became a state in 1876, one hundred years after the Declaration of Independence.",
+CT: "The colony's Fundamental Orders of 1638–39 are often called the first written constitution.",
+DE: "Delaware was the first state to ratify the U.S. Constitution, on December 7, 1787.",
+FL: "Named for the warm, sunny climate that draws visitors year-round. It became official in 1970.",
+GA: "Georgia built a reputation for high-quality peaches after growers began shipping them north in the late 1800s.",
+HI: "Aloha is the Hawaiian word for love and affection, used to say both hello and goodbye.",
+ID: "Promoters claimed \"Idaho\" was a Native word meaning \"gem of the mountains.\" It was invented, but the state does yield many gemstones, including rare star garnets.",
+IL: "Tallgrass prairie once covered most of the state.",
+IN: "Nobody knows for certain where \"Hoosier\" came from. It was in use by the 1830s and spread with John Finley's 1833 poem \"The Hoosier's Nest.\"",
+IA: "A tribute to the Sauk leader Black Hawk, promoted by Burlington boosters in 1838. It may also echo the scout Hawkeye in The Last of the Mohicans.",
+KS: "Wild sunflowers grow across the plains of Kansas. The sunflower became the state flower in 1903.",
+KY: "Bluegrass fills the pastures of central Kentucky. Its buds give the fields a bluish tint in spring.",
+LA: "The brown pelican lives along the Gulf Coast and appears on the state seal and flag.",
+ME: "Maine's vast white pine forests once supplied masts for sailing ships.",
+MD: "Honors the \"Maryland Line,\" the regular troops who held their ground in the Revolutionary War, most famously at the Battle of Long Island.",
+MA: "Comes from the Massachusetts Bay Colony, the Puritan settlement founded on Massachusetts Bay.",
+MI: "Michigan touches four of the five Great Lakes: Superior, Michigan, Huron, and Erie.",
+MN: "From the state motto, \"L'Étoile du Nord,\" French for \"Star of the North.\"",
+MS: "Magnolia trees grow throughout the state. The magnolia is both the state flower and the state tree.",
+MO: "Congressman Willard Vandiver said in an 1899 speech, \"I am from Missouri. You have got to show me.\" It stands for skeptical common sense.",
+MT: "Named for the gold, silver, and copper mined from its mountains.",
+NE: "From the University of Nebraska's teams, called the Cornhuskers since 1900, after the work of husking corn by hand. The state adopted it in 1945.",
+NV: "The Comstock Lode, a huge silver strike found in 1859, drew the rush that led to statehood.",
+NH: "Named for the state's granite bedrock and the quarries that once worked it.",
+NJ: "Credited to Abraham Browning, who in an 1876 speech compared New Jersey to a barrel of good food open at both ends, feeding New York and Pennsylvania.",
+NM: "Began as a tourism slogan in the 1930s for the state's scenery and history. It became official in 1999.",
+NY: "Often credited to George Washington, who in 1785 called New York \"the seat of the empire.\" It reflects the state's wealth and resources.",
+NC: "Tar and pitch from the pine forests were a major early industry. Legend adds that North Carolina soldiers held their ground as if they had tar on their heels.",
+ND: "Named for the International Peace Garden on the border with Manitoba, which opened in 1932.",
+OH: "Buckeye trees are common in Ohio. Their nut looks like the eye of a deer. The name spread during William Henry Harrison's 1840 campaign.",
+OK: "\"Sooners\" were settlers who slipped into the territory sooner than the legal start of the 1889 Land Run to claim the best land.",
+OR: "The trade in beaver pelts drew the first trappers and settlers to Oregon. The beaver is the state animal.",
+PA: "Pennsylvania sat in the middle of the thirteen original colonies, like the keystone that locks an arch together.",
+RI: "Rhode Island has about 400 miles of coastline around Narragansett Bay, and no part of the state is far from salt water.",
+SC: "In 1776 a fort built of soft palmetto logs on Sullivan's Island absorbed British cannonballs and held off the fleet.",
+SD: "Named for Mount Rushmore, carved in the Black Hills from 1927 to 1941. It replaced \"Sunshine State\" in 1992.",
+TN: "Tennesseans volunteered in large numbers for the War of 1812 and again for the Mexican-American War, when far more men showed up than were asked for.",
+TX: "The single star on the flag of the Republic of Texas stood for its independence from Mexico.",
+UT: "The Mormon pioneers chose the beehive as a symbol of hard work and cooperation.",
+VT: "Named for the Green Mountains. \"Vermont\" itself comes from the French for \"green mountain.\"",
+VA: "By tradition, King Charles II called Virginia his \"old dominion\" for its loyalty to the crown during the English Civil War.",
+WA: "Coined in 1890 by Seattle realtor C. T. Conover for the state's evergreen forests.",
+WV: "The Appalachian Mountains cover the whole state, which has the highest average elevation east of the Mississippi.",
+WI: "Lead miners in the 1820s and 1830s dug shelters into the hillsides and lived in them like badgers.",
+WY: "In 1869 Wyoming Territory became the first place in the country to grant women the right to vote."
+};
+
 // abbr, state, capital, nickname, region, extra accepted nicknames
 const STATES = [
 ["AL","Alabama","Montgomery","Yellowhammer State","South"],
@@ -273,7 +332,7 @@ const STATES = [
 ["WV","West Virginia","Charleston","Mountain State","South"],
 ["WI","Wisconsin","Madison","Badger State","Midwest"],
 ["WY","Wyoming","Cheyenne","Equality State","West",["Cowboy State"]]
-].map(([ab, name, cap, nick, region, alt]) => ({ ab, name, cap, nick, region, alt: alt || [] }));
+].map(([ab, name, cap, nick, region, alt]) => ({ ab, name, cap, nick, region, alt: alt || [], why: WHY[ab] }));
 
 // Each ask: what is shown, what is answered, and which fact (c = capital, n = nickname) it trains.
 const ASKS = {
@@ -378,7 +437,9 @@ function renderPlate() {
   if (tappable) { p.id = "plateBtn"; p.onclick = reveal; }
   p.append(el("span", "p-ask", A.label), el("span", "p-main", q.s[A.show]), el("span", "p-rule"));
   if (q.done) {
-    p.append(el("span", "p-ans", q.s[A.answer]), el("span", "p-foot", q.s.name + " · " + q.s.cap + " · " + q.s.nick));
+    const why = el("span", "p-why");
+    why.append(el("strong", null, "Why “" + q.s.nick + "”? "), q.s.why);
+    p.append(el("span", "p-ans", q.s[A.answer]), el("span", "p-foot", q.s.name + " · " + q.s.cap + " · " + q.s.nick), why);
   } else {
     p.append(el("span", "p-ans wait", mode === "cards" ? "Tap to show the answer" : "?"), el("span", "p-foot", ""));
   }
@@ -461,7 +522,7 @@ function renderList() {
         btn.setAttribute("aria-label", "Show " + (fact === "c" ? "capital" : "nickname") + " of " + s.name);
         btn.onclick = () => { shown.add(k); renderList(); };
         td.append(btn);
-      } else td.append(text);
+      } else { td.append(text); if (fact === "n") td.append(el("span", "why", s.why)); }
       tr.append(td);
     }
     body.append(tr);
