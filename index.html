@@ -175,6 +175,28 @@ td.st { font-weight: 600; }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font-size: 0.8125rem; }
 .linkbtn.danger { color: var(--bad); }
 .empty { padding: 18px 12px; color: var(--muted); }
+
+/* Scores: daily history */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.tile b { display: block; font-family: var(--display); font-weight: 700; font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 0.8125rem; color: var(--muted); }
+.chartbox { background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+.readout { font-size: 0.875rem; color: var(--muted); min-height: 1.3em; font-variant-numeric: tabular-nums; }
+.readout strong { color: var(--ink); }
+.chart { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; height: 160px; border-bottom: 1px solid var(--line); }
+.day { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; background: none; border: 0; padding: 0; min-width: 0; }
+.day:hover, .day:focus-visible { background: var(--bg); border-radius: 4px 4px 0 0; }
+.day i { display: block; width: 100%; max-width: 28px; margin: 0 auto; }
+.day .miss { background: var(--bad); border-radius: 4px 4px 0 0; }
+.day .hit { background: var(--good); }
+.day .hit:first-child { border-radius: 4px 4px 0 0; }
+.ticks { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; font-size: 0.6875rem; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.key { display: flex; gap: 16px; font-size: 0.8125rem; color: var(--muted); }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+#scores, #list { min-width: 0; }
+#dayRows td.st { white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
 </style>
 
@@ -195,6 +217,7 @@ td.st { font-weight: 600; }
     <button class="tab" role="tab" data-mode="quiz" id="tab-quiz">Quiz</button>
     <button class="tab" role="tab" data-mode="type" id="tab-type">Type it</button>
     <button class="tab" role="tab" data-mode="list" id="tab-list">All 50</button>
+    <button class="tab" role="tab" data-mode="scores" id="tab-scores">Scores</button>
   </nav>
 
   <section id="practice" class="wrapless" style="display:contents">
@@ -204,6 +227,25 @@ td.st { font-weight: 600; }
     </div>
     <div id="plateSlot"></div>
     <div class="controls" id="controls"></div>
+  </section>
+
+  <section id="scores" hidden>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="tiles" id="tiles"></div>
+      <div class="chartbox">
+        <div class="readout" id="readout"></div>
+        <div class="chart" id="chart"></div>
+        <div class="ticks" id="ticks"></div>
+        <div class="key"><span><i style="background:var(--good)"></i>Correct</span><span><i style="background:var(--bad)"></i>Missed</span></div>
+      </div>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th>Day</th><th class="num">Answered</th><th class="num">Correct</th><th class="num">Capitals</th><th class="num">Nicknames</th><th class="num">Map</th><th class="num">Mastered</th></tr></thead>
+          <tbody id="dayRows"></tbody>
+        </table>
+      </div>
+      <p class="hint">Scores are saved in this browser for the last 60 days. Each student should use their own browser or device.</p>
+    </div>
   </section>
 
   <section id="list" hidden>
@@ -404,7 +446,8 @@ const ASKS = {
 };
 const FACTS = STATES.length * 3;
 const REGIONS = ["All", "Northeast", "Midwest", "South", "West"];
-const MODES = ["cards", "quiz", "type", "list"];
+const MODES = ["cards", "quiz", "type", "list", "scores"];
+const KEEP_DAYS = 60;
 const KEY = "fifty-plates-v1";
 
 let saved = {};
@@ -416,13 +459,15 @@ if (!asks.length) asks = ["sc", "sn", "ms"];
 if (saved.asks && !saved.hasMap && !asks.includes("ms")) asks.push("ms");
 let region = REGIONS.includes(saved.region) ? saved.region : "All";
 let mode = MODES.includes(location.hash.slice(1)) ? location.hash.slice(1) : (MODES.includes(saved.mode) ? saved.mode : "cards");
+// "2026-11-23" -> { a: answered, c: correct, m: mastered at day's end, f: { c|n|m: [answered, correct] } }
+const days = saved.days || {};
 let streak = 0, q = null, lastKey = "";
 let hideCap = false, hideNick = false;
 const shown = new Set();
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ progress, asks, region, mode, hasMap: true })); } catch (e) {} };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ progress, asks, region, mode, hasMap: true, days })); } catch (e) {} };
 const box = (s, fact) => progress[s.ab + ":" + fact] || 0;
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
@@ -446,10 +491,23 @@ function nextQuestion() {
   q = { s: pick.s, ask: pick.ask, opts: shuffle([pick.s[field], ...others]), done: false, picked: null, verdict: null };
 }
 
+const dayKey = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const mastered = () => Object.values(progress).filter(b => b >= 3).length;
+
+function logAnswer(fact, ok) {
+  const today = dayKey(new Date()), d = days[today] || (days[today] = { a: 0, c: 0, m: 0, f: {} });
+  const f = d.f[fact] || (d.f[fact] = [0, 0]);
+  d.a++; f[0]++; if (ok) { d.c++; f[1]++; }
+  d.m = mastered();
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - KEEP_DAYS);
+  for (const k in days) if (k < dayKey(cutoff)) delete days[k];
+}
+
 function grade(ok) {
   const k = q.s.ab + ":" + ASKS[q.ask].fact;
   progress[k] = ok ? Math.min(3, (progress[k] || 0) + 1) : 0;
   streak = ok ? streak + 1 : 0;
+  logAnswer(ASKS[q.ask].fact, ok);
   save();
 }
 
@@ -474,7 +532,7 @@ function checkTyped(text) {
 
 /* ---------- rendering ---------- */
 function renderMeter() {
-  const n = Object.values(progress).filter(b => b >= 3).length;
+  const n = mastered();
   $("mCount").textContent = n; $("mStreak").textContent = streak; $("mBar").style.width = (n / FACTS * 100) + "%";
 }
 
@@ -620,13 +678,57 @@ function renderList() {
   }
 }
 
+const pct = (c, a) => a ? Math.round(c / a * 100) + "%" : "–";
+function renderScores() {
+  const list = [];
+  for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); list.push({ date: d, key: dayKey(d), v: days[dayKey(d)] }); }
+  const played = list.filter(x => x.v), tot = played.reduce((t, x) => t + x.v.a, 0), right = played.reduce((t, x) => t + x.v.c, 0);
+  const today = list[13].v;
+  $("tiles").replaceChildren(...[
+    [today ? today.a : 0, "answered today"],
+    [tot, "answered in 14 days"],
+    [pct(right, tot), "correct in 14 days"],
+    [played.length + " of 14", "days practiced"]
+  ].map(([v, label]) => { const t = el("div", "tile"); t.append(el("b", null, v), el("span", null, label)); return t; }));
+
+  const fmt = d => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const say = x => x.v ? fmt(x.date) + ": " + x.v.a + " answered, " + x.v.c + " correct (" + pct(x.v.c, x.v.a) + ")" : fmt(x.date) + ": no practice";
+  const idle = "Hover or tap a day for details.";
+  const read = $("readout"); read.textContent = idle;
+  const top = Math.max(10, ...played.map(x => x.v.a));
+  $("chart").replaceChildren(...list.map(x => {
+    const b = el("button", "day"); b.setAttribute("aria-label", say(x));
+    if (x.v) {
+      const miss = x.v.a - x.v.c;
+      if (miss) { const i = el("i", "miss"); i.style.height = (miss / top * 100) + "%"; b.append(i); }
+      if (x.v.c) { const i = el("i", "hit"); i.style.height = (x.v.c / top * 100) + "%"; b.append(i); }
+    }
+    b.onmouseenter = b.onfocus = b.onclick = () => { read.textContent = say(x); };
+    b.onmouseleave = b.onblur = () => { read.textContent = idle; };
+    return b;
+  }));
+  $("ticks").replaceChildren(...list.map((x, i) => el("span", null, i === 13 ? "Today" : ((13 - i) % 2 ? "" : (x.date.getMonth() + 1) + "/" + x.date.getDate()))));
+
+  const body = $("dayRows"); body.replaceChildren();
+  const rows = Object.keys(days).sort().reverse();
+  if (!rows.length) { const tr = el("tr"), td = el("td", "empty", "No answers yet. Scores appear here after the first question."); td.colSpan = 7; tr.append(td); body.append(tr); return; }
+  for (const k of rows) {
+    const v = days[k], [y, m, dd] = k.split("-").map(Number), tr = el("tr");
+    const part = f => v.f[f] ? v.f[f][1] + "/" + v.f[f][0] : "–";
+    tr.append(el("td", "st", fmt(new Date(y, m - 1, dd))), el("td", "num", v.a), el("td", "num", v.c + " (" + pct(v.c, v.a) + ")"),
+      el("td", "num", part("c")), el("td", "num", part("n")), el("td", "num", part("m")), el("td", "num", v.m + "/" + FACTS));
+    body.append(tr);
+  }
+}
+
 function render(focus) {
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.mode === mode));
-  const isList = mode === "list";
-  $("list").hidden = !isList;
-  $("filters").hidden = $("plateSlot").hidden = $("controls").hidden = isList;
+  const isList = mode === "list", isScores = mode === "scores";
+  $("list").hidden = !isList; $("scores").hidden = !isScores;
+  $("filters").hidden = $("plateSlot").hidden = $("controls").hidden = isList || isScores;
   renderMeter();
   if (isList) return renderList();
+  if (isScores) return renderScores();
   renderFilters(); renderPlate(); renderControls(focus);
 }
 
@@ -638,7 +740,7 @@ function pick(o) {
   grade(ok); render(true);
 }
 function advance() { nextQuestion(); render(true); if (mode === "cards") $("plateBtn").focus({ preventScroll: true }); }
-function setMode(m) { mode = m; save(); if (m !== "list") nextQuestion(); render(); }
+function setMode(m) { mode = m; save(); if (m !== "list" && m !== "scores") nextQuestion(); render(); }
 
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => setMode(t.dataset.mode));
 $("search").oninput = renderList;
@@ -649,14 +751,14 @@ function resetPrompt(asking) {
   const boxEl = $("resetBox"); boxEl.replaceChildren();
   if (!asking) { const b = el("button", "linkbtn", "Reset progress"); b.id = "resetBtn"; b.onclick = () => resetPrompt(true); boxEl.append(b); return; }
   const yes = el("button", "linkbtn danger", "Yes, erase it"), no = el("button", "linkbtn", "Keep it");
-  yes.onclick = () => { for (const k in progress) delete progress[k]; streak = 0; save(); resetPrompt(false); render(); };
+  yes.onclick = () => { for (const k in progress) delete progress[k]; for (const k in days) delete days[k]; streak = 0; save(); resetPrompt(false); render(); };
   no.onclick = () => resetPrompt(false);
   boxEl.append("Erase all progress? ", yes, " · ", no);
 }
 resetPrompt(false);
 
 document.addEventListener("keydown", e => {
-  if (mode === "list" || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (mode === "list" || mode === "scores" || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.matches("input, textarea")) return;
   const onBtn = e.target.matches("button");
   if (mode === "cards") {
