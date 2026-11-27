@@ -204,10 +204,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   <header class="head">
     <div>
       <h1>Fifty Plates</h1>
-      <p class="sub">Every state, its capital, and its nickname.</p>
+      <p class="sub">Every state, its capital, its nickname, and its two-letter code.</p>
     </div>
     <div class="meter" aria-live="polite">
-      <div class="meter-row"><span><strong id="mCount">0</strong> of 150 facts mastered</span><span>Streak <strong id="mStreak">0</strong></span></div>
+      <div class="meter-row"><span><strong id="mCount">0</strong> of <span id="mTotal">200</span> facts mastered</span><span>Streak <strong id="mStreak">0</strong></span></div>
       <div class="bar"><i id="mBar"></i></div>
     </div>
   </header>
@@ -240,7 +240,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       </div>
       <div class="tablebox">
         <table>
-          <thead><tr><th>Day</th><th class="num">Answered</th><th class="num">Correct</th><th class="num">Capitals</th><th class="num">Nicknames</th><th class="num">Map</th><th class="num">Mastered</th></tr></thead>
+          <thead><tr><th>Day</th><th class="num">Answered</th><th class="num">Correct</th><th class="num">Capitals</th><th class="num">Nicknames</th><th class="num">Map</th><th class="num">Codes</th><th class="num">Mastered</th></tr></thead>
           <tbody id="dayRows"></tbody>
         </table>
       </div>
@@ -254,10 +254,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         <input id="search" type="search" placeholder="Search a state, capital, or nickname" aria-label="Search">
         <button class="chip" id="hideCap" aria-pressed="false">Hide capitals</button>
         <button class="chip" id="hideNick" aria-pressed="false">Hide nicknames</button>
+        <button class="chip" id="hideAb" aria-pressed="false">Hide codes</button>
       </div>
       <div class="tablebox">
         <table>
-          <thead><tr><th>State</th><th>Capital</th><th>Nickname</th></tr></thead>
+          <thead><tr><th>State</th><th>Capital</th><th>Nickname</th><th>Code</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -436,15 +437,16 @@ const STATES = [
 ["WY","Wyoming","Cheyenne","Equality State","West",["Cowboy State"]]
 ].map(([ab, name, cap, nick, region, alt]) => ({ ab, name, cap, nick, region, alt: alt || [], why: WHY[ab] }));
 
-// Each ask: what is shown, what is answered, and which fact (c = capital, n = nickname, m = map location) it trains.
+// Each ask: what is shown, what is answered, and which fact (c = capital, n = nickname, m = map location, a = abbreviation) it trains.
 const ASKS = {
   sc: { chip: "State → Capital",  label: "What is the capital of",   show: "name", answer: "cap",  fact: "c" },
   cs: { chip: "Capital → State",  label: "Which state's capital is", show: "cap",  answer: "name", fact: "c" },
   sn: { chip: "State → Nickname", label: "What is the nickname of",  show: "name", answer: "nick", fact: "n" },
   ns: { chip: "Nickname → State", label: "Which state is called",    show: "nick", answer: "name", fact: "n" },
-  ms: { chip: "Map → State",      label: "Which state is marked?",   show: "map",  answer: "name", fact: "m" }
+  ms: { chip: "Map → State",      label: "Which state is marked?",   show: "map",  answer: "name", fact: "m" },
+  sa: { chip: "State → Code",     label: "What is the two-letter code of", show: "name", answer: "ab", fact: "a" }
 };
-const FACTS = STATES.length * 3;
+const FACTS = STATES.length * 4;
 const REGIONS = ["All", "Northeast", "Midwest", "South", "West"];
 const MODES = ["cards", "quiz", "type", "list", "scores"];
 const KEEP_DAYS = 60;
@@ -453,21 +455,22 @@ const KEY = "fifty-plates-v1";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
 const progress = saved.progress || {};          // "AL:c" -> 0..3 correct in a row
-let asks = (saved.asks || ["sc", "sn", "ms"]).filter(a => ASKS[a]);
-if (!asks.length) asks = ["sc", "sn", "ms"];
-// Mix map questions in once for people who saved their choices before the map existed.
+let asks = (saved.asks || ["sc", "sn", "ms", "sa"]).filter(a => ASKS[a]);
+if (!asks.length) asks = ["sc", "sn", "ms", "sa"];
+// Mix map and code questions in once for people who saved their choices before those existed.
 if (saved.asks && !saved.hasMap && !asks.includes("ms")) asks.push("ms");
+if (saved.asks && !saved.hasCodes && !asks.includes("sa")) asks.push("sa");
 let region = REGIONS.includes(saved.region) ? saved.region : "All";
 let mode = MODES.includes(location.hash.slice(1)) ? location.hash.slice(1) : (MODES.includes(saved.mode) ? saved.mode : "cards");
 // "2026-11-23" -> { a: answered, c: correct, m: mastered at day's end, f: { c|n|m: [answered, correct] } }
 const days = saved.days || {};
 let streak = 0, q = null, lastKey = "";
-let hideCap = false, hideNick = false;
+let hideCap = false, hideNick = false, hideAb = false;
 const shown = new Set();
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ progress, asks, region, mode, hasMap: true, days })); } catch (e) {} };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ progress, asks, region, mode, hasMap: true, hasCodes: true, days })); } catch (e) {} };
 const box = (s, fact) => progress[s.ab + ":" + fact] || 0;
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
@@ -486,7 +489,10 @@ function nextQuestion() {
   // On the map, wrong choices come from nearby states so the answer can't be guessed by region.
   const near = (s, t) => Math.hypot(MAP[s.ab][0] - MAP[t.ab][0], MAP[s.ab][1] - MAP[t.ab][1]);
   const rest = STATES.filter(s => s !== pick.s);
-  const candidates = pick.ask === "ms" ? rest.sort((a, b) => near(a, pick.s) - near(b, pick.s)).slice(0, 7) : rest;
+  // For codes, wrong choices share a letter with the answer (Maine: MA, MD, MI...).
+  const alike = rest.filter(s => s.ab[0] === pick.s.ab[0] || s.ab[1] === pick.s.ab[1]);
+  const candidates = pick.ask === "ms" ? rest.sort((a, b) => near(a, pick.s) - near(b, pick.s)).slice(0, 7)
+    : pick.ask === "sa" && alike.length >= 3 ? alike : rest;
   const others = shuffle(candidates).slice(0, 3).map(s => s[field]);
   q = { s: pick.s, ask: pick.ask, opts: shuffle([pick.s[field], ...others]), done: false, picked: null, verdict: null };
 }
@@ -533,7 +539,7 @@ function checkTyped(text) {
 /* ---------- rendering ---------- */
 function renderMeter() {
   const n = mastered();
-  $("mCount").textContent = n; $("mStreak").textContent = streak; $("mBar").style.width = (n / FACTS * 100) + "%";
+  $("mCount").textContent = n; $("mTotal").textContent = FACTS; $("mStreak").textContent = streak; $("mBar").style.width = (n / FACTS * 100) + "%";
 }
 
 function renderFilters() {
@@ -630,8 +636,8 @@ function renderControls(focus) {
   if (mode === "type") {
     const form = el("form", "typeform"), input = el("input");
     input.id = "answerInput"; input.type = "text"; input.autocomplete = "off"; input.spellcheck = false;
-    input.setAttribute("autocapitalize", "words");
-    input.setAttribute("aria-label", "Your answer"); input.placeholder = "Type the " + ({ cap: "capital", nick: "nickname", name: "state" })[ASKS[q.ask].answer];
+    input.setAttribute("autocapitalize", ASKS[q.ask].answer === "ab" ? "characters" : "words");
+    input.setAttribute("aria-label", "Your answer"); input.placeholder = "Type the " + ({ cap: "capital", nick: "nickname", name: "state", ab: "two-letter code" })[ASKS[q.ask].answer];
     if (q.done) { input.value = q.picked || ""; input.readOnly = true; }
     const b = el("button", "btn primary", q.done ? "Next" : "Check"); b.type = "submit"; b.id = "checkBtn";
     form.append(input, b);
@@ -657,18 +663,18 @@ function renderList() {
   const term = $("search").value.trim().toLowerCase();
   const rows = STATES.filter(s => !term || (s.name + " " + s.cap + " " + s.nick + " " + s.ab).toLowerCase().includes(term));
   const body = $("rows"); body.replaceChildren();
-  if (!rows.length) { const tr = el("tr"), td = el("td", "empty", "No state matches that search."); td.colSpan = 3; tr.append(td); body.append(tr); return; }
+  if (!rows.length) { const tr = el("tr"), td = el("td", "empty", "No state matches that search."); td.colSpan = 4; tr.append(td); body.append(tr); return; }
   for (const s of rows) {
     const tr = el("tr");
     const st = el("td", "st"), mb = Math.min(3, box(s, "m"));
     st.append(el("i", "pip" + (mb ? " b" + mb : "")), s.name);
     tr.append(st);
-    for (const [fact, text, hidden] of [["c", s.cap, hideCap], ["n", s.nick, hideNick]]) {
+    for (const [fact, text, hidden] of [["c", s.cap, hideCap], ["n", s.nick, hideNick], ["a", s.ab, hideAb]]) {
       const td = el("td"), k = s.ab + fact, b = Math.min(3, box(s, fact));
       td.append(el("i", "pip" + (b ? " b" + b : "")));
       if (hidden && !shown.has(k)) {
         const btn = el("button", "cover", "Show");
-        btn.setAttribute("aria-label", "Show " + (fact === "c" ? "capital" : "nickname") + " of " + s.name);
+        btn.setAttribute("aria-label", "Show " + ({ c: "capital", n: "nickname", a: "code" })[fact] + " of " + s.name);
         btn.onclick = () => { shown.add(k); renderList(); };
         td.append(btn);
       } else { td.append(text); if (fact === "n") td.append(el("span", "why", s.why)); }
@@ -711,12 +717,12 @@ function renderScores() {
 
   const body = $("dayRows"); body.replaceChildren();
   const rows = Object.keys(days).sort().reverse();
-  if (!rows.length) { const tr = el("tr"), td = el("td", "empty", "No answers yet. Scores appear here after the first question."); td.colSpan = 7; tr.append(td); body.append(tr); return; }
+  if (!rows.length) { const tr = el("tr"), td = el("td", "empty", "No answers yet. Scores appear here after the first question."); td.colSpan = 8; tr.append(td); body.append(tr); return; }
   for (const k of rows) {
     const v = days[k], [y, m, dd] = k.split("-").map(Number), tr = el("tr");
     const part = f => v.f[f] ? v.f[f][1] + "/" + v.f[f][0] : "–";
     tr.append(el("td", "st", fmt(new Date(y, m - 1, dd))), el("td", "num", v.a), el("td", "num", v.c + " (" + pct(v.c, v.a) + ")"),
-      el("td", "num", part("c")), el("td", "num", part("n")), el("td", "num", part("m")), el("td", "num", v.m + "/" + FACTS));
+      el("td", "num", part("c")), el("td", "num", part("n")), el("td", "num", part("m")), el("td", "num", part("a")), el("td", "num", v.m + "/" + FACTS));
     body.append(tr);
   }
 }
@@ -746,6 +752,7 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => setMode(t.datas
 $("search").oninput = renderList;
 $("hideCap").onclick = e => { hideCap = !hideCap; shown.clear(); e.currentTarget.setAttribute("aria-pressed", hideCap); renderList(); };
 $("hideNick").onclick = e => { hideNick = !hideNick; shown.clear(); e.currentTarget.setAttribute("aria-pressed", hideNick); renderList(); };
+$("hideAb").onclick = e => { hideAb = !hideAb; shown.clear(); e.currentTarget.setAttribute("aria-pressed", hideAb); renderList(); };
 
 function resetPrompt(asking) {
   const boxEl = $("resetBox"); boxEl.replaceChildren();
